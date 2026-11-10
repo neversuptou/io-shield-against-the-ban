@@ -1,0 +1,12 @@
+[Unit]
+Description=AI bridge proxy (loopback only)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/caddy run --config /opt/ai-bridge/Caddyfile
+EnvironmentFile=/opt/ai-bridge/env
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

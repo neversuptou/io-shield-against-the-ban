@@ -1,0 +1,13 @@
+# ~/.ssh/config — client side (forward model).
+# Fill in HostName and drop this into your ~/.ssh/config, then `ssh io-bridge`.
+
+Host io-bridge
+    HostName CHANGE-ME-SERVER
+    User root
+    IdentityFile ~/.ssh/io-ai-bridge
+    IdentitiesOnly yes
+    ServerAliveInterval 15
+    ServerAliveCountMax 3
+    ExitOnForwardFailure yes
+    LocalForward 8801 127.0.0.1:8801
+    DynamicForward 18081

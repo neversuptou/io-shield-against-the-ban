@@ -1,0 +1,46 @@
+# ---- Secrets: never commit ----
+*.key
+*.pem
+id_ed25519
+id_ed25519.pub
+.env
+env
+zai-key
+openai-token
+*credentials*
+*secret*
+*token*
+
+# ---- Hermes runtime / data ----
+*.db
+*.db-shm
+*.db-wal
+*.lock
+*.pid
+*.log
+*.lnk
+sessions/
+memories/
+cron/
+cache/
+logs/
+telemetry/
+state-snapshots/
+backups/
+audio_cache/
+image_cache/
+attachments/
+pairing/
+pending_messages/
+profiles/*/.env
+profiles/*/auth.json
+install_id
+gateway_state.json
+channel_directory.json
+ui-preferences.json
+.hermes_history
+.skills_prompt_snapshot.json
+
+# ---- OS ----
+.DS_Store
+Thumbs.db

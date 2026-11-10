@@ -1,0 +1,19 @@
+# Hermes profile config (profiles/<name>/config.yaml).
+# Точка входа провайдера — мост через SSH-туннель (127.0.0.1:8801).
+# Реальный ключ подставляет сервер; здесь — заглушка (см. .env.example).
+model:
+  default: glm-5.3-flash
+  provider: zai
+  base_url: 'http://127.0.0.1:8801/zai/paas'
+  api_mode: chat_completions
+
+model_aliases:
+  glm-5.3:
+    model: glm-5.3
+    provider: zai
+  glm-5.3-flash:
+    model: glm-5.3-flash
+    provider: zai
+  glm-5.3-flashx:
+    model: glm-5.3-flashx
+    provider: zai

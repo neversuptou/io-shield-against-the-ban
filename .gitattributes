@@ -1,0 +1,6 @@
+# Line endings: keep shell scripts LF (they run on the Linux server), Windows
+# scripts CRLF. Everything else is text=auto.
+* text=auto
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf

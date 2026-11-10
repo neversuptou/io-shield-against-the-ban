@@ -1,0 +1,94 @@
+{
+  admin off
+  auto_https off
+}
+
+# AI bridge proxy — loopback only, reachable solely via the SSH tunnel.
+# Clients: 127.0.0.1:8801/zai/anthropic/* (claude CLI, Anthropic wire)
+#          127.0.0.1:8801/zai/paas/*       (Hermes, OpenAI wire)
+# The real provider key is injected from env (ZAI_KEY); clients hold only
+# a placeholder. Upstream always sees the server, never the client machine.
+
+:8801 {
+  route /zai/anthropic/* {
+    uri strip_prefix /zai/anthropic
+    rewrite * /api/anthropic{uri}
+    reverse_proxy https://api.z.ai {
+      transport http {
+        tls_server_name api.z.ai
+      }
+      header_up user-agent "claude-cli/2.0.0 (linux, cli)"
+      header_up x-stainless-os "Linux"
+      header_up x-stainless-arch "x64"
+      header_up x-stainless-runtime "node"
+      header_up Authorization "Bearer {env.ZAI_KEY}"
+    }
+  }
+
+  route /zai/paas/* {
+    uri strip_prefix /zai/paas
+    rewrite * /api/paas/v4{uri}
+    reverse_proxy https://api.z.ai {
+      transport http {
+        tls_server_name api.z.ai
+      }
+      header_up user-agent "hermes-agent/0.23 (linux)"
+      header_up Authorization "Bearer {env.ZAI_KEY}"
+    }
+  }
+
+  route /anthropic/* {
+    uri strip_prefix /anthropic
+    rewrite * /v1{uri}
+    reverse_proxy https://api.anthropic.com {
+      transport http {
+        tls_server_name api.anthropic.com
+      }
+      header_up user-agent "claude-cli/2.0.0 (linux, cli)"
+      header_up x-stainless-os "Linux"
+      header_up x-stainless-arch "x64"
+      header_up x-stainless-runtime "node"
+    }
+  }
+
+  route /quota/zai {
+    uri strip_prefix /quota/zai
+    rewrite * /api/monitor/usage/quota/limit
+    header Access-Control-Allow-Origin "*"
+    reverse_proxy https://api.z.ai {
+      transport http {
+        tls_server_name api.z.ai
+      }
+      header_up user-agent "ai-bridge/1.0"
+      header_up Authorization "Bearer {env.ZAI_KEY}"
+    }
+  }
+
+  route /quota/zai-week {
+    uri strip_prefix /quota/zai-week
+    rewrite * /api/monitor/usage/model-usage
+    header Access-Control-Allow-Origin "*"
+    reverse_proxy https://api.z.ai {
+      transport http {
+        tls_server_name api.z.ai
+      }
+      header_up user-agent "ai-bridge/1.0"
+      header_up Authorization "Bearer {env.ZAI_KEY}"
+    }
+  }
+
+  route /quota/openai {
+    uri strip_prefix /quota/openai
+    rewrite * /backend-api/wham/usage
+    header Access-Control-Allow-Origin "*"
+    reverse_proxy https://chatgpt.com {
+      transport http {
+        tls_server_name chatgpt.com
+      }
+      header_up user-agent "codex_cli_rs/1.0"
+      header_up Authorization "Bearer {env.OPENAI_TOKEN}"
+    }
+  }
+
+  respond 404
+}
