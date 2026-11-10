@@ -9,7 +9,7 @@
 # The real provider key is injected from env (ZAI_KEY); clients hold only
 # a placeholder. Upstream always sees the server, never the client machine.
 
-:8801 {
+127.0.0.1:8801 {
   route /zai/anthropic/* {
     uri strip_prefix /zai/anthropic
     rewrite * /api/anthropic{uri}

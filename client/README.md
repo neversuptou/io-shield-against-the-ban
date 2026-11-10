@@ -3,6 +3,15 @@
 Всё, что нужно на машине, где работает агент: туннель до моста и конфиг Hermes,
 направленный на `127.0.0.1:8801`.
 
+## Порядок установки (с нуля)
+
+1. Установи Hermes (официальный `NousResearch/hermes-agent`). Определи его
+   **проектный home** — папку, где лежат `hermes-agent/` (исходники) и
+   `profiles/`. Ниже зовём её `<HERMES_HOME>`.
+2. Положи конфиг и ключ профиля (раздел «Настройка Hermes»).
+3. Подними туннель (раздел «Настройка туннеля»).
+4. Запусти Hermes через `launch.cmd` / `launch.py`.
+
 ## Что внутри
 
 | Путь | Что это |
@@ -26,6 +35,8 @@
 - `127.0.0.1:8801` — сам мост (`ssh -L 8801:127.0.0.1:8801`);
 - `127.0.0.1:18081` — SOCKS-прокси через сервер (`ssh -D 18081`), через него
   Hermes ходит за веб-инструментами и фоновыми проверками.
+
+Сервер при этом должен принимать SSH (sshd запущен, порт 22 доступен с клиента).
 
 ### Вариант A — forward (рекомендуется, как в этой репе)
 
@@ -61,11 +72,24 @@ IO_CLIENT_HOST=<ip-пк> ./tunnel-reverse.sh
 
 ## Настройка Hermes
 
-1. Установи Hermes (официальный `NousResearch/hermes-agent`).
-2. Скопируй `hermes/config.yaml.example` в `profiles/<твой>/config.yaml`.
-3. Скопируй `hermes/.env.example` в `profiles/<твой>/.env`.
-4. Запускай через `launch.cmd` / `launch.py` — они пиннуют `HERMES_HOME` и
-   кладут весь не-loopback трафик на `socks5h://127.0.0.1:18081`.
+Скопируй примеры в профиль:
 
-Ключ в `.env` — заглушка (`bridge-placeholder`): мост всё равно перезаписывает
-`Authorization` на сервере. Реальный ключ на клиенте не нужен.
+- `hermes/config.yaml.example` → `<HERMES_HOME>/profiles/<твой>/config.yaml`
+- `hermes/.env.example` → `<HERMES_HOME>/profiles/<твой>/.env`
+
+Ключ в `.env` — заглушка (`bridge-placeholder`): мост перезаписывает
+`Authorization` на сервере, реальный ключ на клиенте не нужен.
+
+### Плагин квот (опционально)
+
+- `plugin/ai-quota/plugin.js` → `<HERMES_HOME>/desktop-plugins/ai-quota/plugin.js`
+
+Он забирает `/quota/*` с моста и показывает расход квот в дашборде.
+
+## Запуск
+
+`launch.cmd` / `launch.py` пиннуют `HERMES_HOME` и кладут весь не-loopback трафик
+на `socks5h://127.0.0.1:18081`. Перед первым запуском задай в `launch.cmd`:
+
+- `IO_HOME` — твой `<HERMES_HOME>` (папка с `hermes-agent/` и `profiles/`);
+- `PY` — путь к python (или оставь `python`, если он в PATH).

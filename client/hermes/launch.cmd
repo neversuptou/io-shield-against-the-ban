@@ -5,8 +5,7 @@ rem
 rem Set IO_HOME to the directory that contains hermes-agent/ and profiles/,
 rem and PY to your Python (Hermes bundles one under tools/python-*/python.exe).
 
-set "IO_HOME=D:\Programms\IO"
-set "PY=%IO_HOME%\hermes\tools\python\python.exe"
-if not exist "%PY%" set "PY=python"
+set "IO_HOME=CHANGE-ME"
+set "PY=python"
 
 "%PY%" -I "%~dp0launch.py" --profile io desktop

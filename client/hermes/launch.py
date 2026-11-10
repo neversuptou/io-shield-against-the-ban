@@ -6,19 +6,20 @@ import sys
 # every non-loopback HTTP(S) routed through the bridge SOCKS (127.0.0.1:18081),
 # so agent web tools and background checks leave via the server, not directly.
 #
-# IO_HOME must point at the directory that contains `hermes-agent` (the Hermes
-# source) and `profiles/`. Defaults to the parent of this file's `client/hermes`.
-# Example: IO_HOME="D:\\Programms\\IO" python launch.py --profile io desktop
+# IO_HOME must point at your Hermes project home — the directory that contains
+# hermes-agent/ (the Hermes source) and profiles/.
+#   IO_HOME=<your-hermes-home> python launch.py --profile io desktop
 
 os.environ.pop("PYTHONHOME", None)
 os.environ.pop("PYTHONPATH", None)
 os.environ.pop("VIRTUAL_ENV", None)
 
-# this file lives at <IO_HOME>/client/hermes/launch.py -> two levels up.
-_default = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-HOME = os.environ.get("IO_HOME") or _default
+HOME = os.environ.get("IO_HOME")
+if not HOME:
+    sys.exit("IO_HOME is not set — point it at the dir containing hermes-agent/ and profiles/")
+
 sys.path.insert(0, os.path.join(HOME, "hermes-agent"))
-sys._hermes_pin_default_home = True
+sys._hermes_pin_default_home = True  # type: ignore[attr-defined]
 os.environ["HERMES_HOME"] = HOME
 
 # Route non-loopback HTTP(S) through the bridge SOCKS; loopback (8801) stays direct.
