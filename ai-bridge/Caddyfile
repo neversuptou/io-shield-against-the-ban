@@ -12,6 +12,9 @@
 :8801 {
   bind 127.0.0.1
 
+  # Tunnel health check: no provider request and no secret exposure.
+  respond /healthz 204
+
   route /zai/anthropic/* {
     uri strip_prefix /zai/anthropic
     rewrite * /api/anthropic{uri}

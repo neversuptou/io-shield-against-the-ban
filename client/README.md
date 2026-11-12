@@ -21,7 +21,8 @@
 | `tunnel/tunnel-reverse.sh` | Reverse-вариант (сервер сам звонит на ПК) |
 | `tunnel/ssh-config.example` | `~/.ssh/config` для forward-модели |
 | `tunnel/firewall-killswitch.ps1` | блокирует прямой outbound-443 к провайдерам |
-| `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch по состоянию туннеля |
+| `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch по состоянию Hermes |
+| `tunnel/test-ai-bridge.ps1` | проверяет туннель, `/healthz`, SOCKS и kill-switch |
 | `tunnel/setup-tunnel-task.cmd` | регистрирует скрытую задачу `AI-Bridge-Tunnel` |
 | `hermes/config.yaml.example` | конфиг профиля Hermes (провайдер → мост) |
 | `hermes/.env.example` | ключ-заглушка для Hermes |
@@ -93,3 +94,15 @@ IO_CLIENT_HOST=<ip-пк> ./tunnel-reverse.sh
 
 - `IO_HOME` — твой `<HERMES_HOME>` (папка с `hermes-agent/` и `profiles/`);
 - `PY` — путь к python (или оставь `python`, если он в PATH).
+
+## Проверка
+
+После установки и при диагностике выполни в PowerShell:
+
+```powershell
+.\tunnel\test-ai-bridge.ps1 -ExpectedEgressIp <ip-сервера>
+```
+
+Скрипт проверяет end-to-end путь до `/healthz` через SSH-туннель, SOCKS на
+`127.0.0.1:18081`, внешний IP через SOCKS и включённое правило блокировки, если
+процесс Hermes запущен. Он не отправляет запросы провайдерам и не читает ключи.
