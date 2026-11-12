@@ -1,5 +1,7 @@
 import os
 import runpy
+import socket
+import subprocess
 import sys
 
 # Boots the Hermes desktop/CLI with HERMES_HOME pinned to the project home and
@@ -22,10 +24,15 @@ sys.path.insert(0, os.path.join(HOME, "hermes-agent"))
 sys._hermes_pin_default_home = True  # type: ignore[attr-defined]
 os.environ["HERMES_HOME"] = HOME
 
-# Route all provider/web HTTP(S) through the bridge SOCKS. Set both cases and
-# ALL_PROXY because Python, Node, CLI tools, and native SDKs differ in which
-# spelling they honor. Only loopback stays direct.
-_proxy = "socks5h://127.0.0.1:18081"
+# Route clients through a loopback HTTP CONNECT proxy; it relays via the SSH
+# SOCKS listener and supports clients such as Claude Code that reject SOCKS.
+_proxy_script = os.path.join(HOME, "hermes-agent", "ai-bridge", "http_to_socks_proxy.py")
+try:
+    with socket.create_connection(("127.0.0.1", 18082), timeout=0.2):
+        pass
+except OSError:
+    subprocess.Popen([sys.executable, _proxy_script], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+_proxy = "http://127.0.0.1:18082"
 for _name in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "https_proxy", "http_proxy", "all_proxy"):
     os.environ[_name] = _proxy
 for _name in ("NO_PROXY", "no_proxy"):
