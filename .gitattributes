@@ -4,3 +4,8 @@
 *.sh text eol=lf
 *.ps1 text eol=crlf
 *.cmd text eol=crlf
+Dockerfile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.template text eol=lf
+*.js text eol=lf
