@@ -10,6 +10,8 @@ openai-token
 *credentials*
 *secret*
 *token*
+bridge.env
+internal-domains.txt
 
 # ---- Hermes runtime / data ----
 *.db

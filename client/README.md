@@ -16,13 +16,12 @@
 
 | Путь | Что это |
 |---|---|
-| `tunnel/tunnel.ps1` | Windows: туннель, привязанный к жизни Hermes (авто up/down) |
+| `tunnel/tunnel.ps1` | Windows: туннель, привязанный к жизни Hermes/Claude (авто up/down); хост/ключ из `bridge.env` |
 | `tunnel/tunnel-forward.sh` | Linux/macOS: простой forward-туннель |
 | `tunnel/tunnel-reverse.sh` | Reverse-вариант (сервер сам звонит на ПК) |
 | `tunnel/ssh-config.example` | `~/.ssh/config` для forward-модели |
-| `tunnel/firewall-killswitch.ps1` | блокирует прямой outbound-443 к встроенным провайдерам |
 | `tunnel/provider-domains.ps1` | список встроенных provider/OAuth доменов для fail-closed firewall |
-| `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch по состоянию Hermes; также блокирует UDP к публичному интернету |
+| `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch (TCP 443 + UDP) и SSH-allow по состоянию Hermes/Claude |
 | `tunnel/system-proxy-watchdog.ps1` | PAC-прокси: публичный трафик → туннель, внутренние/частные домены → напрямую, без локального DNS |
 | `tunnel/http_to_socks_proxy.py` | loopback-only HTTP CONNECT → SOCKS адаптер + отдаёт PAC на `/proxy.pac` |
 | `tunnel/claude-container.ps1` | запускает Claude Code в изолированном Docker-контейнере |
@@ -64,6 +63,14 @@ IO_BRIDGE_HOST=<ip-сервера> ./tunnel/tunnel-forward.sh        # Linux/mac
 #   или настроить env и зарегистрировать задачу на Windows:
 setx IO_BRIDGE_HOST <ip-сервера> /M
 tunnel\setup-tunnel-task.cmd
+```
+
+Windows-скрипт `tunnel.ps1` берёт хост и путь к ключу из `tunnel/bridge.env`
+(gitignored — не коммить реальный адрес сервера). Скопируй пример и заполни:
+
+```
+IO_BRIDGE_KEY=C:\path\to\id_ed25519
+IO_BRIDGE_SSH=root@YOUR.SERVER.IP
 ```
 
 ### Вариант B — reverse (когда до ПК можно достучаться с сервера)
@@ -169,8 +176,9 @@ Windows proxy. Без реального входа его можно прове
 
 PAC не резолвит DNS локально (никаких `isInNet` по hostname), поэтому публичные
 имена резолвятся сервером через туннель и не светятся локальному резолверу.
-Список внутренних доменов — в переменной `$internalDomains` внутри
-`system-proxy-watchdog.ps1`; добавь туда свои корпоративные домены.
+Список внутренних доменов задаётся файлом `tunnel/internal-domains.txt` (по
+одному домену в строку; gitignored, пример — `internal-domains.txt.example`).
+Без файла действует встроенный дефолт `evapps.ru`.
 
 `tunnel-watchdog.ps1` дополнительно блокирует исходящий **UDP к публичному
 интернету** (`-RemoteAddress Internet`). Это режет QUIC/HTTP3, WebRTC/STUN и

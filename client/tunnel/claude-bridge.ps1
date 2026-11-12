@@ -6,7 +6,6 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$socksProxy = 'socks5h://127.0.0.1:18081'
 $httpProxy = 'http://127.0.0.1:18082'
 
 if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 18081 -InformationLevel Quiet -WarningAction SilentlyContinue)) {
@@ -14,7 +13,10 @@ if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 18081 -InformationLev
 }
 
 if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 18082 -InformationLevel Quiet -WarningAction SilentlyContinue)) {
-    Start-Process -WindowStyle Hidden -FilePath 'python' -ArgumentList "`"$PSScriptRoot\http_to_socks_proxy.py`""
+    $env:AI_BRIDGE_PAC_FILE = Join-Path $env:LOCALAPPDATA 'AI-Bridge\proxy.pac'
+    $python = (Get-Command python -ErrorAction SilentlyContinue).Source
+    if (-not $python) { $python = 'python' }
+    Start-Process -WindowStyle Hidden -FilePath $python -ArgumentList "`"$PSScriptRoot\http_to_socks_proxy.py`""
     for ($attempt = 0; $attempt -lt 30; $attempt++) {
         Start-Sleep -Milliseconds 200
         if (Test-NetConnection -ComputerName 127.0.0.1 -Port 18082 -InformationLevel Quiet -WarningAction SilentlyContinue) { break }

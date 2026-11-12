@@ -31,8 +31,8 @@ services:
     build:
       context: .
       args:
-        CLAUDE_CODE_VERSION: "2.1.319"
-    image: io-claude-runner:2.1.319
+        CLAUDE_CODE_VERSION: "${CLAUDE_CODE_VERSION:-2.1.319}"
+    image: io-claude-runner:${CLAUDE_CODE_VERSION:-2.1.319}
     profiles: ["build-only"]
     network_mode: "service:gateway"
     depends_on:

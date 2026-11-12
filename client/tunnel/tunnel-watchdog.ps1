@@ -9,10 +9,13 @@ $udpRule = 'AI-Bridge-Block-UDP'
 $domains = & "$PSScriptRoot\provider-domains.ps1"
 $lastState = $null
 $lastResolve = [datetime]::MinValue
-$claudeMarker = Join-Path $PSScriptRoot 'claude-bridge.active'
+$allowSshRule = 'AI-Bridge-Allow-SSH'
+$claudeContainerUp = { (docker ps -q --filter name=io-claude-gateway 2>$null) }
 
 while ($true) {
-    $running = [bool](Get-Process Hermes -ErrorAction SilentlyContinue) -or [bool](Get-Process claude -ErrorAction SilentlyContinue)
+    $running = [bool](Get-Process Hermes -ErrorAction SilentlyContinue) -or
+               [bool](Get-Process claude -ErrorAction SilentlyContinue) -or
+               [bool](& $claudeContainerUp)
 
     if ($running) {
         $stale = $lastResolve -lt (Get-Date).AddMinutes(-15)
@@ -23,6 +26,11 @@ while ($true) {
             }
             $ips = $ips | Sort-Object -Unique
             if ($ips) {
+                # Note: provider domains resolve to CDN anycast IPs (Cloudflare,
+                # Fastly) shared with unrelated sites, so this direct-block is
+                # deliberately broad. It only affects direct 443 (the bridge path
+                # goes through the tunnel, not directly), so the over-reach is
+                # harmless on this fail-closed host.
                 Remove-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue
                 New-NetFirewallRule -DisplayName $rule -Direction Outbound -Action Block `
                   -Protocol TCP -RemotePort 443 -RemoteAddress $ips | Out-Null
@@ -39,6 +47,14 @@ while ($true) {
             New-NetFirewallRule -DisplayName $udpRule -Direction Outbound -Action Block `
               -Protocol UDP -RemoteAddress Internet | Out-Null
             Write-Host "$(Get-Date -Format s) UDP block ENABLED (public internet)"
+        }
+        # Ensure the tunnel process can reach the bridge server on 443/22 even
+        # if a provider IP ever overlaps with the server address (defense in depth).
+        if ((Get-NetFirewallRule -DisplayName $allowSshRule -ErrorAction SilentlyContinue).Enabled -ne 'True') {
+            Remove-NetFirewallRule -DisplayName $allowSshRule -ErrorAction SilentlyContinue
+            New-NetFirewallRule -DisplayName $allowSshRule -Direction Outbound -Action Allow `
+              -Protocol TCP -RemotePort 443,22 -Program "$env:SystemRoot\System32\OpenSSH\ssh.exe" | Out-Null
+            Write-Host "$(Get-Date -Format s) SSH allow ENABLED"
         }
     } elseif ($running -ne $lastState) {
         Set-NetFirewallRule -DisplayName $rule -Enabled False -ErrorAction SilentlyContinue

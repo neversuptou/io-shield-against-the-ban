@@ -2,6 +2,9 @@
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$ClaudeArgs)
 
 $ErrorActionPreference = 'Stop'
+# Single source of truth for the Claude Code version (keep in sync with the
+# Dockerfile ARG default; this value is passed as --build-arg and used as tag).
+$claudeVersion = '2.1.319'
 $compose = Join-Path $PSScriptRoot 'claude-container\compose.yaml'
 if (-not (Test-Path -LiteralPath $compose)) {
     $compose = Join-Path (Split-Path -Parent $PSScriptRoot) 'claude-container\compose.yaml'
@@ -23,8 +26,9 @@ try {
 } finally {
     $env:SOCKS_HOST = $previousSocksHost
 }
-if (-not (& docker image inspect io-claude-runner:2.1.319 2>$null)) {
-    & docker compose -f $compose --profile build-only build runner
+if (-not (& docker image inspect io-claude-runner:$claudeVersion 2>$null)) {
+    $env:CLAUDE_CODE_VERSION = $claudeVersion
+    & docker compose -f $compose --profile build-only build --build-arg CLAUDE_CODE_VERSION=$claudeVersion runner
     if ($LASTEXITCODE -ne 0) { throw 'Unable to build the isolated Claude runner.' }
 }
 
@@ -47,7 +51,7 @@ $dockerArgs += @(
     '--env', "all_proxy=$proxyBase",
     '--env', 'NO_PROXY=localhost,127.0.0.1,::1',
     '--env', 'no_proxy=localhost,127.0.0.1,::1',
-    'io-claude-runner:2.1.319'
+    "io-claude-runner:$claudeVersion"
 ) + $ClaudeArgs
 & docker @dockerArgs
 exit $LASTEXITCODE

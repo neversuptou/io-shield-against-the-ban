@@ -1,0 +1,4 @@
+# Copy to internal-domains.txt next to system-proxy-watchdog.ps1 (one domain per
+# line). These bypass the tunnel — they are reachable only on your local/corporate
+# network and are matched by exact suffix (no DNS resolution, so no leak).
+evapps.ru

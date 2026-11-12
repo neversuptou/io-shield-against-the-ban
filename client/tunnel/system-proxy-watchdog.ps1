@@ -11,7 +11,12 @@ $backupPath = Join-Path $pacDir 'hermes-system-proxy-backup.json'
 $names = 'ProxyEnable', 'ProxyServer', 'ProxyOverride', 'AutoConfigURL'
 # Internal/corporate domains that must bypass the tunnel (reachable only on the
 # local network). Matched by exact suffix, no DNS resolution -> no leak.
+# Extend/override via internal-domains.txt (one domain per line) next to the script.
 $internalDomains = @('evapps.ru')
+$domainsFile = Join-Path $PSScriptRoot 'internal-domains.txt'
+if (Test-Path $domainsFile) {
+    $internalDomains = Get-Content $domainsFile | Where-Object { $_ -match '^\s*[^#\s]' } | ForEach-Object { $_.Trim() }
+}
 $enabled = $false
 $createdNew = $false
 $mutex = New-Object System.Threading.Mutex($true, 'AI-Bridge-SystemProxy', [ref]$createdNew)
