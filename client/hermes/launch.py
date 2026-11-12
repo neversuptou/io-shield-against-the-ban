@@ -28,7 +28,12 @@ os.environ["PATH"] = os.path.join(HOME, "hermes-agent", "ai-bridge") + ";" + os.
 
 # Route clients through a loopback HTTP CONNECT proxy; it relays via the SSH
 # SOCKS listener and supports clients such as Claude Code that reject SOCKS.
+_system_proxy_watchdog = os.path.join(HOME, "hermes-agent", "ai-bridge", "system-proxy-watchdog.ps1")
+subprocess.Popen(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", _system_proxy_watchdog], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 _proxy_script = os.path.join(HOME, "hermes-agent", "ai-bridge", "http_to_socks_proxy.py")
+# The adapter also serves the scoped PAC that routes public traffic through the
+# bridge while leaving internal/corporate hosts direct.
+os.environ["AI_BRIDGE_PAC_FILE"] = os.path.join(os.environ["LOCALAPPDATA"], "AI-Bridge", "proxy.pac")
 try:
     with socket.create_connection(("127.0.0.1", 18082), timeout=0.2):
         pass

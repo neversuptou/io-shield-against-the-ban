@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 from urllib.parse import urlsplit
 
 LISTEN_HOST = "127.0.0.1"
@@ -16,6 +17,7 @@ LISTEN_PORT = 18082
 SOCKS_HOST = "127.0.0.1"
 SOCKS_PORT = 18081
 MAX_HEADER_BYTES = 64 * 1024
+PAC_FILE = os.environ.get("AI_BRIDGE_PAC_FILE", "")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -67,6 +69,16 @@ async def relay(source: asyncio.StreamReader, target: asyncio.StreamWriter) -> N
             target.write_eof()
 
 
+def read_pac() -> bytes:
+    if not PAC_FILE:
+        return b"function FindProxyForURL(u, h) { return \"DIRECT\"; }\n"
+    try:
+        with open(PAC_FILE, "rb") as f:
+            return f.read()
+    except OSError:
+        return b"function FindProxyForURL(u, h) { return \"DIRECT\"; }\n"
+
+
 async def proxy_connection(client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter) -> None:
     peer = client_writer.get_extra_info("peername")
     upstream_writer: asyncio.StreamWriter | None = None
@@ -77,6 +89,17 @@ async def proxy_connection(client_reader: asyncio.StreamReader, client_writer: a
         header_text = raw_headers.decode("iso-8859-1")
         lines = header_text.split("\r\n")
         method, target, version = lines[0].split(" ", 2)
+
+        if method.upper() == "GET" and (target == "/proxy.pac" or urlsplit(target).path == "/proxy.pac"):
+            body = read_pac()
+            client_writer.write(
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: application/x-ns-proxy-autoconfig\r\n"
+                b"Content-Length: " + str(len(body)).encode() + b"\r\n"
+                b"Connection: close\r\n\r\n" + body
+            )
+            await client_writer.drain()
+            return
 
         if method.upper() == "CONNECT":
             host, separator, port_text = target.rpartition(":")

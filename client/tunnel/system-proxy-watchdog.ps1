@@ -1,9 +1,13 @@
-# Enables the Windows user proxy only while Hermes is running, so OAuth browsers
-# follow the same SSH SOCKS tunnel. The previous user settings are restored when
-# Hermes exits.
+# Enables a scoped Windows proxy only while Hermes is running, so OAuth browsers
+# route AI-provider traffic through the SSH SOCKS tunnel WITHOUT hijacking the
+# user's internal/corporate network. A PAC file proxies only the provider/OAuth
+# domains; private ranges, loopback, link-local and everything else go DIRECT.
+# The previous user settings are restored when Hermes exits.
 $ErrorActionPreference = 'SilentlyContinue'
 $registryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
-$backupPath = Join-Path $env:LOCALAPPDATA 'AI-Bridge\hermes-system-proxy-backup.json'
+$pacDir = Join-Path $env:LOCALAPPDATA 'AI-Bridge'
+$pacPath = Join-Path $pacDir 'proxy.pac'
+$backupPath = Join-Path $pacDir 'hermes-system-proxy-backup.json'
 $names = 'ProxyEnable', 'ProxyServer', 'ProxyOverride', 'AutoConfigURL'
 $enabled = $false
 $createdNew = $false
@@ -23,6 +27,30 @@ namespace AiBridge { public static class WinInet {
     [AiBridge.WinInet]::InternetSetOption([IntPtr]::Zero, 37, [IntPtr]::Zero, 0) | Out-Null
 }
 
+function New-PacFile {
+    New-Item -ItemType Directory -Force -Path $pacDir | Out-Null
+    $pac = @"
+function FindProxyForURL(url, host) {
+    host = host.toLowerCase();
+    // Internal, loopback, link-local and plain-name hosts are reachable only on
+    // the local/corporate network and must never leave through the tunnel.
+    if (isPlainHostName(host) ||
+        host == "localhost" ||
+        isInNet(host, "10.0.0.0", "255.0.0.0") ||
+        isInNet(host, "172.16.0.0", "255.240.0.0") ||
+        isInNet(host, "192.168.0.0", "255.255.0.0") ||
+        isInNet(host, "127.0.0.0", "255.0.0.0") ||
+        isInNet(host, "169.254.0.0", "255.255.0.0")) {
+        return "DIRECT";
+    }
+    // Everything public goes through the SSH bridge to hide the home IP.
+    return "PROXY 127.0.0.1:18082";
+}
+"@
+    [System.IO.File]::WriteAllText($pacPath, $pac, (New-Object System.Text.UTF8Encoding($false)))
+    return 'http://127.0.0.1:18082/proxy.pac'
+}
+
 function Enable-BridgeProxy {
     if ($enabled) { return }
     $current = Get-ItemProperty -Path $registryPath
@@ -31,12 +59,13 @@ function Enable-BridgeProxy {
         $property = $current.PSObject.Properties[$name]
         $backup[$name] = [ordered]@{ Exists = ($null -ne $property); Value = if ($property) { $property.Value } else { $null } }
     }
-    New-Item -ItemType Directory -Force -Path (Split-Path $backupPath) | Out-Null
+    New-Item -ItemType Directory -Force -Path $pacDir | Out-Null
     $backup | ConvertTo-Json -Depth 3 | Set-Content -Encoding UTF8 -Path $backupPath
+    $pacUrl = New-PacFile
     New-ItemProperty -Path $registryPath -Name 'ProxyEnable' -PropertyType DWord -Value 1 -Force | Out-Null
-    New-ItemProperty -Path $registryPath -Name 'ProxyServer' -Value 'socks=127.0.0.1:18081' -Force | Out-Null
-    New-ItemProperty -Path $registryPath -Name 'ProxyOverride' -Value '<local>;127.0.0.1;localhost;::1' -Force | Out-Null
-    Remove-ItemProperty -Path $registryPath -Name 'AutoConfigURL' -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $registryPath -Name 'ProxyServer' -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $registryPath -Name 'ProxyOverride' -ErrorAction SilentlyContinue
+    New-ItemProperty -Path $registryPath -Name 'AutoConfigURL' -Value $pacUrl -Force | Out-Null
     Refresh-InternetSettings
     $enabled = $true
 }
