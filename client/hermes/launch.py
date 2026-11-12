@@ -23,6 +23,8 @@ if not HOME:
 sys.path.insert(0, os.path.join(HOME, "hermes-agent"))
 sys._hermes_pin_default_home = True  # type: ignore[attr-defined]
 os.environ["HERMES_HOME"] = HOME
+# Resolve `claude` launched by Hermes to the isolated container runner first.
+os.environ["PATH"] = os.path.join(HOME, "hermes-agent", "ai-bridge") + ";" + os.environ.get("PATH", "")
 
 # Route clients through a loopback HTTP CONNECT proxy; it relays via the SSH
 # SOCKS listener and supports clients such as Claude Code that reject SOCKS.

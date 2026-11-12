@@ -10,7 +10,7 @@ $lastState = $null
 $lastResolve = [datetime]::MinValue
 
 while ($true) {
-    $running = [bool](Get-Process Hermes -ErrorAction SilentlyContinue)
+    $running = [bool](Get-Process Hermes -ErrorAction SilentlyContinue) -or [bool](Get-Process claude -ErrorAction SilentlyContinue)
 
     if ($running) {
         $stale = $lastResolve -lt (Get-Date).AddMinutes(-15)

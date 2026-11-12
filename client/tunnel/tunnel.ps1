@@ -23,20 +23,20 @@ $ours = { Get-CimInstance Win32_Process -Filter "Name='ssh.exe'" |
           Where-Object { ([string]$_.CommandLine) -like "*$key*" } }
 
 while ($true) {
-    $hermesRunning = [bool](Get-Process Hermes -ErrorAction SilentlyContinue)
+    $protectedRunning = [bool](Get-Process Hermes -ErrorAction SilentlyContinue) -or [bool](Get-Process claude -ErrorAction SilentlyContinue)
     $tunnelUp = Test-NetConnection -ComputerName 127.0.0.1 -Port 8801 -InformationLevel Quiet -WarningAction SilentlyContinue
 
-    if ($hermesRunning -and -not $tunnelUp) {
+    if ($protectedRunning -and -not $tunnelUp) {
         Add-Content $log "$(Get-Date -Format s) hermes running, tunnel down -> start"
         Start-Process -WindowStyle Hidden -FilePath "$env:SystemRoot\System32\OpenSSH\ssh.exe" -ArgumentList $sshArgs
         Start-Sleep -Seconds 8
     }
-    elseif (-not $hermesRunning -and (& $ours)) {
+    elseif (-not $protectedRunning -and (& $ours)) {
         Add-Content $log "$(Get-Date -Format s) hermes closed -> tearing down our ssh"
         & $ours | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
         Start-Sleep -Seconds 5
     }
-    elseif ($hermesRunning -and $tunnelUp -and (& $ours | Measure-Object).Count -gt 1) {
+    elseif ($protectedRunning -and $tunnelUp -and (& $ours | Measure-Object).Count -gt 1) {
         # dedupe: keep the oldest instance, kill the rest
         (& $ours | Sort-Object CreationDate | Select-Object -Skip 1) |
             ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
