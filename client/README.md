@@ -23,7 +23,8 @@
 | `tunnel/firewall-killswitch.ps1` | блокирует прямой outbound-443 к встроенным провайдерам |
 | `tunnel/provider-domains.ps1` | список встроенных provider/OAuth доменов для fail-closed firewall |
 | `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch по состоянию Hermes |
-| `tunnel/claude-bridge.ps1` | запускает Claude CLI с proxy-env и fail-closed проверкой SOCKS |
+| `tunnel/claude-bridge.ps1` | запускает Claude CLI через HTTP CONNECT → SSH SOCKS с fail-closed проверкой |
+| `tunnel/http_to_socks_proxy.py` | loopback-only HTTP CONNECT → SOCKS адаптер для Claude Code |
 | `tunnel/claude-oauth-bridge.ps1` | временно задаёт системный SOCKS proxy для Claude OAuth и восстанавливает прежние настройки |
 | `tunnel/test-ai-bridge.ps1` | проверяет туннель, `/healthz`, SOCKS и kill-switch |
 | `tunnel/setup-tunnel-task.cmd` | регистрирует скрытую задачу `AI-Bridge-Tunnel` |
@@ -109,12 +110,19 @@ IO_CLIENT_HOST=<ip-пк> ./tunnel-reverse.sh
 .\tunnel\claude-oauth-bridge.ps1
 ```
 
-`claude-oauth-bridge.ps1` проверяет SOCKS, временно включает в Windows
-системный `socks=127.0.0.1:18081`, запускает `claude auth login`, а затем
-всегда восстанавливает предыдущие proxy-настройки. Для проверки без OAuth:
+Wrapper не задаёт `ANTHROPIC_BASE_URL`: для OAuth-подписки Claude сохраняет
+штатные Anthropic endpoints. Claude Code принимает HTTP(S)-proxy, но не SOCKS,
+поэтому wrapper поднимает только на loopback HTTP CONNECT-адаптер `:18082`,
+который передаёт соединения в SSH SOCKS `:18081`. Если туннель или этот адаптер
+недоступны, Claude не запускается.
+
+`claude-oauth-bridge.ps1` временно включает системный SOCKS для браузерного
+OAuth, запускает Claude login и в `finally` восстанавливает прежние настройки
+Windows proxy. Без реального входа его можно проверить так:
 
 ```powershell
 .\tunnel\claude-oauth-bridge.ps1 -DryRun
+```
 
 ## Проверка
 
