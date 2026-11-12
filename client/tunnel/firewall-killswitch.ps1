@@ -3,9 +3,9 @@
 # the server, where the bridge proxy connects instead).
 # Run as Administrator. Re-run after provider IP changes (script re-resolves).
 $ErrorActionPreference = 'Stop'
-$domains = 'api.z.ai', 'zcode.z.ai', 'api.anthropic.com', 'sentry.io'
+$domains = & "$PSScriptRoot\provider-domains.ps1"
 $ips = foreach ($d in $domains) {
-  try { [System.Net.Dns]::GetHostAddresses($d) | Where-Object { $_.AddressFamily -eq 'InterNetwork' } | Select-Object -ExpandProperty IPAddressToString } catch {}
+  try { [System.Net.Dns]::GetHostAddresses($d) | Select-Object -ExpandProperty IPAddressToString } catch {}
 }
 $ips = $ips | Sort-Object -Unique
 Write-Host "Blocking: $($ips -join ', ')"

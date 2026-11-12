@@ -22,10 +22,14 @@ sys.path.insert(0, os.path.join(HOME, "hermes-agent"))
 sys._hermes_pin_default_home = True  # type: ignore[attr-defined]
 os.environ["HERMES_HOME"] = HOME
 
-# Route non-loopback HTTP(S) through the bridge SOCKS; loopback (8801) stays direct.
-os.environ["HTTPS_PROXY"] = "socks5h://127.0.0.1:18081"
-os.environ["HTTP_PROXY"] = "socks5h://127.0.0.1:18081"
-os.environ["NO_PROXY"] = "127.0.0.1,localhost"
+# Route all provider/web HTTP(S) through the bridge SOCKS. Set both cases and
+# ALL_PROXY because Python, Node, CLI tools, and native SDKs differ in which
+# spelling they honor. Only loopback stays direct.
+_proxy = "socks5h://127.0.0.1:18081"
+for _name in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "https_proxy", "http_proxy", "all_proxy"):
+    os.environ[_name] = _proxy
+for _name in ("NO_PROXY", "no_proxy"):
+    os.environ[_name] = "127.0.0.1,localhost,::1"
 
 # Neutral locale/timezone for env-context consistency with the Linux story.
 os.environ.setdefault("TZ", "Europe/Berlin")

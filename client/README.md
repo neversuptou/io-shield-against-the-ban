@@ -20,8 +20,10 @@
 | `tunnel/tunnel-forward.sh` | Linux/macOS: простой forward-туннель |
 | `tunnel/tunnel-reverse.sh` | Reverse-вариант (сервер сам звонит на ПК) |
 | `tunnel/ssh-config.example` | `~/.ssh/config` для forward-модели |
-| `tunnel/firewall-killswitch.ps1` | блокирует прямой outbound-443 к провайдерам |
+| `tunnel/firewall-killswitch.ps1` | блокирует прямой outbound-443 к встроенным провайдерам |
+| `tunnel/provider-domains.ps1` | список встроенных provider/OAuth доменов для fail-closed firewall |
 | `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch по состоянию Hermes |
+| `tunnel/claude-bridge.ps1` | запускает Claude CLI с proxy-env и fail-closed проверкой SOCKS |
 | `tunnel/test-ai-bridge.ps1` | проверяет туннель, `/healthz`, SOCKS и kill-switch |
 | `tunnel/setup-tunnel-task.cmd` | регистрирует скрытую задачу `AI-Bridge-Tunnel` |
 | `hermes/config.yaml.example` | конфиг профиля Hermes (провайдер → мост) |
@@ -94,6 +96,22 @@ IO_CLIENT_HOST=<ip-пк> ./tunnel-reverse.sh
 
 - `IO_HOME` — твой `<HERMES_HOME>` (папка с `hermes-agent/` и `profiles/`);
 - `PY` — путь к python (или оставь `python`, если он в PATH).
+
+### Claude Code
+
+Запускай Claude через wrapper, чтобы CLI и его дочерние процессы получили SOCKS
+переменные и не стартовали при отсутствующем туннеле:
+
+```powershell
+.\tunnel\claude-bridge.ps1
+.\tunnel\claude-bridge.ps1 -- --version
+.\tunnel\claude-bridge.ps1 -Login
+```
+
+Wrapper не задаёт `ANTHROPIC_BASE_URL`: для OAuth-подписки Claude сохраняет
+штатные Anthropic endpoints, а транспорт идёт через SOCKS. Браузер OAuth —
+отдельный процесс и должен быть явно настроен на тот же SOCKS; это не делает
+Caddy-route `/anthropic` автоматически.
 
 ## Проверка
 

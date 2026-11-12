@@ -5,7 +5,7 @@
 # Runs hidden + elevated (AI-Bridge-Watchdog task, ONLOGON). Re-resolves IPs every 15 min.
 $ErrorActionPreference = 'SilentlyContinue'
 $rule = 'AI-Bridge-Block-Direct'
-$domains = 'api.z.ai', 'zcode.z.ai', 'api.anthropic.com', 'sentry.io'
+$domains = & "$PSScriptRoot\provider-domains.ps1"
 $lastState = $null
 $lastResolve = [datetime]::MinValue
 
@@ -17,7 +17,6 @@ while ($true) {
         if ($running -ne $lastState -or $stale) {
             $ips = foreach ($d in $domains) {
                 try { [System.Net.Dns]::GetHostAddresses($d) |
-                    Where-Object { $_.AddressFamily -eq 'InterNetwork' } |
                     Select-Object -ExpandProperty IPAddressToString } catch {}
             }
             $ips = $ips | Sort-Object -Unique
