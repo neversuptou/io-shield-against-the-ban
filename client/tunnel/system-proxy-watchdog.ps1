@@ -66,7 +66,12 @@ function Enable-BridgeProxy {
         $backup[$name] = [ordered]@{ Exists = ($null -ne $property); Value = if ($property) { $property.Value } else { $null } }
     }
     New-Item -ItemType Directory -Force -Path $pacDir | Out-Null
-    $backup | ConvertTo-Json -Depth 3 | Set-Content -Encoding UTF8 -Path $backupPath
+    # Only capture the original user settings ONCE. On a watchdog restart the
+    # current registry already holds the PAC, so re-backing-up would lose the
+    # original state and make Restore-Proxy re-apply the PAC after Hermes exits.
+    if (-not (Test-Path $backupPath)) {
+        $backup | ConvertTo-Json -Depth 3 | Set-Content -Encoding UTF8 -Path $backupPath
+    }
     $pacUrl = New-PacFile
     New-ItemProperty -Path $registryPath -Name 'ProxyEnable' -PropertyType DWord -Value 1 -Force | Out-Null
     Remove-ItemProperty -Path $registryPath -Name 'ProxyServer' -ErrorAction SilentlyContinue
