@@ -22,7 +22,7 @@
 | `tunnel/ssh-config.example` | `~/.ssh/config` для forward-модели |
 | `tunnel/firewall-killswitch.ps1` | блокирует прямой outbound-443 к встроенным провайдерам |
 | `tunnel/provider-domains.ps1` | список встроенных provider/OAuth доменов для fail-closed firewall |
-| `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch по состоянию Hermes; также блокирует QUIC (UDP 443) |
+| `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch по состоянию Hermes; также блокирует UDP к публичному интернету |
 | `tunnel/system-proxy-watchdog.ps1` | PAC-прокси: публичный трафик → туннель, внутренние/частные домены → напрямую, без локального DNS |
 | `tunnel/http_to_socks_proxy.py` | loopback-only HTTP CONNECT → SOCKS адаптер + отдаёт PAC на `/proxy.pac` |
 | `tunnel/claude-container.ps1` | запускает Claude Code в изолированном Docker-контейнере |
@@ -172,10 +172,13 @@ PAC не резолвит DNS локально (никаких `isInNet` по ho
 Список внутренних доменов — в переменной `$internalDomains` внутри
 `system-proxy-watchdog.ps1`; добавь туда свои корпоративные домены.
 
-`tunnel-watchdog.ps1` дополнительно блокирует исходящий **UDP 443 (QUIC/HTTP3)**,
-вынуждая браузер откатиться на TCP HTTP/2, который идёт через прокси, а не
-напрямую. Правила `AI-Bridge-Block-Direct` (TCP 443 к провайдерам) и
-`AI-Bridge-Block-QUIC` (UDP 443) включаются только пока Hermes/Claude запущен и
+`tunnel-watchdog.ps1` дополнительно блокирует исходящий **UDP к публичному
+интернету** (`-RemoteAddress Internet`). Это режет QUIC/HTTP3, WebRTC/STUN и
+любую другую UDP-утечку, вынуждая браузер работать поверх TCP (который идёт
+через прокси). UDP внутри локальной подсети (DNS, mDNS/SSDP) остаётся открытым,
+поэтому внутренние имена продолжают резолвиться. Правила
+`AI-Bridge-Block-Direct` (TCP 443 к провайдерам) и `AI-Bridge-Block-UDP`
+(UDP к публичным адресам) включаются только пока Hermes/Claude запущен и
 снимаются при выходе.
 
 ## Проверка

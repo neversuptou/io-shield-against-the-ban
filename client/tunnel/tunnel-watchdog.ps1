@@ -5,7 +5,7 @@
 # Runs hidden + elevated (AI-Bridge-Watchdog task, ONLOGON). Re-resolves IPs every 15 min.
 $ErrorActionPreference = 'SilentlyContinue'
 $rule = 'AI-Bridge-Block-Direct'
-$quicRule = 'AI-Bridge-Block-QUIC'
+$udpRule = 'AI-Bridge-Block-UDP'
 $domains = & "$PSScriptRoot\provider-domains.ps1"
 $lastState = $null
 $lastResolve = [datetime]::MinValue
@@ -30,17 +30,19 @@ while ($true) {
                 Write-Host "$(Get-Date -Format s) hermes running -> block ENABLED ($($ips -join ','))"
             }
         }
-        # QUIC (HTTP/3) runs over UDP 443 and would bypass the HTTP proxy; force
-        # the browser to fall back to TCP HTTP/2, which routes through the bridge.
-        if ((Get-NetFirewallRule -DisplayName $quicRule -ErrorAction SilentlyContinue).Enabled -ne 'True') {
-            Remove-NetFirewallRule -DisplayName $quicRule -ErrorAction SilentlyContinue
-            New-NetFirewallRule -DisplayName $quicRule -Direction Outbound -Action Block `
-              -Protocol UDP -RemotePort 443 | Out-Null
-            Write-Host "$(Get-Date -Format s) QUIC block ENABLED"
+        # Block outbound UDP to the public internet: QUIC/HTTP3, WebRTC/STUN and
+        # any other UDP leak cannot bypass the TCP-only bridge. Local-subnet UDP
+        # (DNS, mDNS/SSDP) stays open so internal hostnames still resolve.
+        if ((Get-NetFirewallRule -DisplayName $udpRule -ErrorAction SilentlyContinue).Enabled -ne 'True') {
+            Remove-NetFirewallRule -DisplayName $udpRule -ErrorAction SilentlyContinue
+            Remove-NetFirewallRule -DisplayName 'AI-Bridge-Block-QUIC' -ErrorAction SilentlyContinue
+            New-NetFirewallRule -DisplayName $udpRule -Direction Outbound -Action Block `
+              -Protocol UDP -RemoteAddress Internet | Out-Null
+            Write-Host "$(Get-Date -Format s) UDP block ENABLED (public internet)"
         }
     } elseif ($running -ne $lastState) {
         Set-NetFirewallRule -DisplayName $rule -Enabled False -ErrorAction SilentlyContinue
-        Set-NetFirewallRule -DisplayName $quicRule -Enabled False -ErrorAction SilentlyContinue
+        Set-NetFirewallRule -DisplayName $udpRule -Enabled False -ErrorAction SilentlyContinue
         Write-Host "$(Get-Date -Format s) hermes closed -> block DISABLED"
     }
 
