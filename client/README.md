@@ -24,6 +24,7 @@
 | `tunnel/provider-domains.ps1` | список встроенных provider/OAuth доменов для fail-closed firewall |
 | `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch по состоянию Hermes |
 | `tunnel/claude-bridge.ps1` | запускает Claude CLI с proxy-env и fail-closed проверкой SOCKS |
+| `tunnel/claude-oauth-bridge.ps1` | временно задаёт системный SOCKS proxy для Claude OAuth и восстанавливает прежние настройки |
 | `tunnel/test-ai-bridge.ps1` | проверяет туннель, `/healthz`, SOCKS и kill-switch |
 | `tunnel/setup-tunnel-task.cmd` | регистрирует скрытую задачу `AI-Bridge-Tunnel` |
 | `hermes/config.yaml.example` | конфиг профиля Hermes (провайдер → мост) |
@@ -105,13 +106,15 @@ IO_CLIENT_HOST=<ip-пк> ./tunnel-reverse.sh
 ```powershell
 .\tunnel\claude-bridge.ps1
 .\tunnel\claude-bridge.ps1 -- --version
-.\tunnel\claude-bridge.ps1 -Login
+.\tunnel\claude-oauth-bridge.ps1
 ```
 
-Wrapper не задаёт `ANTHROPIC_BASE_URL`: для OAuth-подписки Claude сохраняет
-штатные Anthropic endpoints, а транспорт идёт через SOCKS. Браузер OAuth —
-отдельный процесс и должен быть явно настроен на тот же SOCKS; это не делает
-Caddy-route `/anthropic` автоматически.
+`claude-oauth-bridge.ps1` проверяет SOCKS, временно включает в Windows
+системный `socks=127.0.0.1:18081`, запускает `claude auth login`, а затем
+всегда восстанавливает предыдущие proxy-настройки. Для проверки без OAuth:
+
+```powershell
+.\tunnel\claude-oauth-bridge.ps1 -DryRun
 
 ## Проверка
 
