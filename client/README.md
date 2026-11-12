@@ -22,9 +22,12 @@
 | `tunnel/ssh-config.example` | `~/.ssh/config` для forward-модели |
 | `tunnel/firewall-killswitch.ps1` | блокирует прямой outbound-443 к встроенным провайдерам |
 | `tunnel/provider-domains.ps1` | список встроенных provider/OAuth доменов для fail-closed firewall |
-| `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch по состоянию Hermes |
-| `tunnel/claude-bridge.ps1` | запускает Claude CLI через HTTP CONNECT → SSH SOCKS с fail-closed проверкой |
-| `tunnel/http_to_socks_proxy.py` | loopback-only HTTP CONNECT → SOCKS адаптер для Claude Code |
+| `tunnel/tunnel-watchdog.ps1` | включает/выключает kill-switch по состоянию Hermes; также блокирует QUIC (UDP 443) |
+| `tunnel/system-proxy-watchdog.ps1` | PAC-прокси: публичный трафик → туннель, внутренние/частные домены → напрямую, без локального DNS |
+| `tunnel/http_to_socks_proxy.py` | loopback-only HTTP CONNECT → SOCKS адаптер + отдаёт PAC на `/proxy.pac` |
+| `tunnel/claude-container.ps1` | запускает Claude Code в изолированном Docker-контейнере |
+| `claude-container/` | Docker runner + gateway (redsocks + iptables, fail-closed egress) |
+| `tunnel/claude-bridge.ps1` | (legacy) Claude CLI через HTTP CONNECT → SSH SOCKS с fail-closed проверкой |
 | `tunnel/claude-oauth-bridge.ps1` | временно задаёт системный SOCKS proxy для Claude OAuth и восстанавливает прежние настройки |
 | `tunnel/test-ai-bridge.ps1` | проверяет туннель, `/healthz`, SOCKS и kill-switch |
 | `tunnel/setup-tunnel-task.cmd` | регистрирует скрытую задачу `AI-Bridge-Tunnel` |
@@ -39,7 +42,9 @@
 
 - `127.0.0.1:8801` — сам мост (`ssh -L 8801:127.0.0.1:8801`);
 - `127.0.0.1:18081` — SOCKS-прокси через сервер (`ssh -D 18081`), через него
-  Hermes ходит за веб-инструментами и фоновыми проверками.
+  Hermes ходит за веб-инструментами и фоновыми проверками;
+- `127.0.0.1:18082` — loopback HTTP CONNECT → SOCKS адаптер (для клиентов,
+  не принимающих SOCKS, например Claude Code), он же отдаёт PAC.
 
 Сервер при этом должен принимать SSH (sshd запущен, порт 22 доступен с клиента).
 
@@ -99,10 +104,38 @@ IO_CLIENT_HOST=<ip-пк> ./tunnel-reverse.sh
 - `IO_HOME` — твой `<HERMES_HOME>` (папка с `hermes-agent/` и `profiles/`);
 - `PY` — путь к python (или оставь `python`, если он в PATH).
 
-### Claude Code
+### Claude Code (изолированный контейнер)
 
-Запускай Claude через wrapper, чтобы CLI и его дочерние процессы получили SOCKS
-переменные и не стартовали при отсутствующем туннеле:
+Рекомендуемый способ — запускать Claude Code в отдельном Docker-контейнере с
+жёстким egress-контролем. Любой TCP из контейнера (CLI, subprocess, плагин)
+принудительно идёт в SSH SOCKS через `redsocks + iptables`, а UDP (QUIC, WebRTC,
+прямой DNS) режется. Это сильнее, чем proxy-переменные: даже код, игнорирующий
+`HTTP(S)_PROXY`, не выйдет в обход туннеля.
+
+```powershell
+.\tunnel\claude-container.ps1            # интерактивный запуск
+.\tunnel\claude-container.ps1 -- --version
+```
+
+Требует запущенного Docker Desktop. Wrapper сам поднимает gateway (контейнер
+`io-claude-gateway` с redsocks) и достраивает runner-образ при первом запуске.
+OAuth-профиль живёт в Docker-томе `io-claude-state`, а не на хосте. Внутри Hermes
+`claude` резолвится в этот runner через PATH-шим (`ai-bridge/claude.cmd`),
+который добавляет `launch.py`.
+
+Проверка egress (оба пути должны показать IP сервера):
+
+```powershell
+docker run --rm --network container:io-claude-gateway --mount type=bind,src=<repo>\client\claude-container\egress-test.js,dst=/e.js,ro --entrypoint node -e PROXY_IP=<host-gw> io-claude-runner:2.1.319 /e.js
+```
+
+`<host-gw>` — адрес `host.docker.internal` внутри Docker Desktop (обычно
+`192.168.65.254`, смотри `docker run --rm --entrypoint getent alpine hosts host.docker.internal`).
+
+### Claude Code (legacy wrapper, без Docker)
+
+Альтернатива без контейнера — wrapper, который задаёт proxy-переменные и не
+стартует при отсутствующем туннеле:
 
 ```powershell
 .\tunnel\claude-bridge.ps1
@@ -123,6 +156,27 @@ Windows proxy. Без реального входа его можно прове
 ```powershell
 .\tunnel\claude-oauth-bridge.ps1 -DryRun
 ```
+
+### Системный прокси (PAC) и QUIC
+
+Пока Hermes работает, `system-proxy-watchdog.ps1` (стартует из `launch.py`)
+ставит системный прокси через PAC-файл, который отдаёт адаптер на
+`http://127.0.0.1:18082/proxy.pac`:
+
+- **публичные домены** → `PROXY 127.0.0.1:18082` (туннель);
+- **внутренние/частные** (`isPlainHostName`, `*.evapps.ru`, `10.*`, `192.168.*`,
+  `169.254.*`, `127.*`) → `DIRECT`.
+
+PAC не резолвит DNS локально (никаких `isInNet` по hostname), поэтому публичные
+имена резолвятся сервером через туннель и не светятся локальному резолверу.
+Список внутренних доменов — в переменной `$internalDomains` внутри
+`system-proxy-watchdog.ps1`; добавь туда свои корпоративные домены.
+
+`tunnel-watchdog.ps1` дополнительно блокирует исходящий **UDP 443 (QUIC/HTTP3)**,
+вынуждая браузер откатиться на TCP HTTP/2, который идёт через прокси, а не
+напрямую. Правила `AI-Bridge-Block-Direct` (TCP 443 к провайдерам) и
+`AI-Bridge-Block-QUIC` (UDP 443) включаются только пока Hermes/Claude запущен и
+снимаются при выходе.
 
 ## Проверка
 

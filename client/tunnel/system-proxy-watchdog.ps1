@@ -9,6 +9,9 @@ $pacDir = Join-Path $env:LOCALAPPDATA 'AI-Bridge'
 $pacPath = Join-Path $pacDir 'proxy.pac'
 $backupPath = Join-Path $pacDir 'hermes-system-proxy-backup.json'
 $names = 'ProxyEnable', 'ProxyServer', 'ProxyOverride', 'AutoConfigURL'
+# Internal/corporate domains that must bypass the tunnel (reachable only on the
+# local network). Matched by exact suffix, no DNS resolution -> no leak.
+$internalDomains = @('evapps.ru')
 $enabled = $false
 $createdNew = $false
 $mutex = New-Object System.Threading.Mutex($true, 'AI-Bridge-SystemProxy', [ref]$createdNew)
@@ -29,18 +32,21 @@ namespace AiBridge { public static class WinInet {
 
 function New-PacFile {
     New-Item -ItemType Directory -Force -Path $pacDir | Out-Null
+    $internal = ($internalDomains | ForEach-Object { "        dnsDomainIs(host, `"$_`")" }) -join " ||`n"
     $pac = @"
 function FindProxyForURL(url, host) {
     host = host.toLowerCase();
-    // Internal, loopback, link-local and plain-name hosts are reachable only on
-    // the local/corporate network and must never leave through the tunnel.
+    // Internal/corporate and loopback hosts are reachable only on the local
+    // network and must never leave through the tunnel. These checks are pure
+    // string matches (no DNS resolution), so no lookups leak to the local
+    // resolver; public DNS is resolved server-side through the bridge.
     if (isPlainHostName(host) ||
         host == "localhost" ||
-        isInNet(host, "10.0.0.0", "255.0.0.0") ||
-        isInNet(host, "172.16.0.0", "255.240.0.0") ||
-        isInNet(host, "192.168.0.0", "255.255.0.0") ||
-        isInNet(host, "127.0.0.0", "255.0.0.0") ||
-        isInNet(host, "169.254.0.0", "255.255.0.0")) {
+        shExpMatch(host, "127.*") ||
+        shExpMatch(host, "10.*") ||
+        shExpMatch(host, "192.168.*") ||
+        shExpMatch(host, "169.254.*") ||
+$internal    ) {
         return "DIRECT";
     }
     // Everything public goes through the SSH bridge to hide the home IP.
